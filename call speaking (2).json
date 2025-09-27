@@ -1,0 +1,694 @@
+{
+  "name": "call speaking",
+  "nodes": [
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "stock",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    },
+                    "id": "474e4182-ff9f-4635-999b-d84385849fbc"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a92df8af-cf4c-4bb8-85e7-d2d02d6314f1",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "hours",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "6c546c36-24da-4810-b57a-cb0a647140d5",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "emi",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "addafecd-9e00-4628-a374-48c311c51d23",
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "",
+                    "operator": {
+                      "type": "string",
+                      "operation": "empty",
+                      "singleValue": true
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -1264,
+        624
+      ],
+      "id": "db57f15b-309e-488d-853e-b9ae282a6907",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT on_hand FROM inventory WHERE sku = 'P001';",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -2656,
+        1360
+      ],
+      "id": "174303e6-1125-458d-b69c-f0fe27785a65",
+      "name": "Execute a SQL query",
+      "alwaysOutputData": false,
+      "executeOnce": false,
+      "credentials": {
+        "postgres": {
+          "id": "zItdnpLfYvNaKPF4",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Stock response Code node\nconst items = $input.all();\nlet row = {};\n\n// 1️⃣ Safely get DB row\n// If the DB node returns an array inside `data` or as a single object\nif (items[0]?.json?.data && Array.isArray(items[0].json.data) && items[0].json.data.length > 0) {\n    row = items[0].json.data[0];  // first row from array\n} else if (items[0]?.json) {\n    row = items[0].json;\n}\n\n// 2️⃣ Get SKU and stock safely\nconst sku = row.sku || $json?.sku || 'the requested product';\nconst stock = parseInt(row.on_hand?.toString?.() || '0', 10);\n\n// 3️⃣ Generate TwiML\nlet twiml = '';\nif (!row || Object.keys(row).length === 0) {\n    twiml = `<Response><Say>Sorry, I could not find product ${sku} in inventory.</Say><Hangup/></Response>`;\n} else if (stock > 0) {\n    twiml = `<Response><Say>The product ${sku} has ${stock} unit${stock === 1 ? '' : 's'} in stock.</Say><Hangup/></Response>`;\n} else {\n    twiml = `<Response><Say>I'm sorry, the product ${sku} is currently out of stock.</Say><Hangup/></Response>`;\n}\n\n// 4️⃣ Return TwiML with headers\nreturn [\n    {\n        json: {\n            body: twiml,\n            headers: { \"Content-Type\": \"application/xml\" }\n        }\n    }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        368
+      ],
+      "id": "85514b1e-673d-43c0-965e-743d4bd1129e",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Store Hours response Code node\nconst items = $input.all();\nlet data = {};\n\n// 1️⃣ Safely get the DB row\nif (items[0]?.json?.data && Array.isArray(items[0].json.data) && items[0].json.data.length > 0) {\n    data = items[0].json.data[0]; // first row from array\n} else if (items[0]?.json) {\n    data = items[0].json;\n}\n\n// 2️⃣ Get hours safely, with fallback\nconst hours = data.value || \"9 AM to 5 PM\";\n\n// 3️⃣ Generate TwiML\nconst twiml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Say>Our store hours are ${hours}, Monday through Saturday.</Say>\n  <Hangup/>\n</Response>`;\n\n// 4️⃣ Return TwiML with proper headers\nreturn [\n    {\n        json: {\n            body: twiml,\n            headers: { \"Content-Type\": \"application/xml\" }\n        }\n    }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        560
+      ],
+      "id": "d806f7d6-b050-4677-9941-06ed9f1130b7",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// EMI response Code node\nconst items = $input.all();\nlet data = {};\n\n// 1️⃣ Safely get the DB row\nif (items[0]?.json?.data && Array.isArray(items[0].json.data) && items[0].json.data.length > 0) {\n    data = items[0].json.data[0]; // first row from array\n} else if (items[0]?.json) {\n    data = items[0].json;\n}\n\n// 2️⃣ Get EMI info safely, with fallback\nconst emi = data.value || \"We offer 3, 6, and 12 month EMI plans.\";\n\n// 3️⃣ Generate TwiML\nconst twiml = `<Response>\n  <Say>Regarding EMI options: ${emi}</Say>\n  <Hangup/>\n</Response>`;\n\n// 4️⃣ Return TwiML with proper headers\nreturn [\n    {\n        json: {\n            body: twiml,\n            headers: { \"Content-Type\": \"application/xml\" }\n        }\n    }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -816,
+        752
+      ],
+      "id": "6fba3b56-480f-41dc-9672-a2a77e3a997f",
+      "name": "Code2"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "inventory",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "sku",
+              "condition": "eq",
+              "keyValue": "={{ $json.sku }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        368
+      ],
+      "id": "0a650a10-08c6-40c8-b626-fed6294c67d4",
+      "name": "Get many rows",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XcRajf5YMGLYH47C",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "settings",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "key",
+              "condition": "eq",
+              "keyValue": "store_hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1040,
+        560
+      ],
+      "id": "9e21f128-d020-42f5-a82e-35b9accb7964",
+      "name": "Get many rows1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XcRajf5YMGLYH47C",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Code4 - initial prompt (replace entirely)\nconst MAIN_WEBHOOK_URL = 'https://n8nbnnnnnnnnn.app.n8n.cloud/webhook/e9c642ee-ebfd-444d-b789-ece3bb8a9025';\n\nconst twiml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n  <Gather input=\"speech\" action=\"${MAIN_WEBHOOK_URL}\" method=\"POST\" speechTimeout=\"auto\" language=\"en-IN\">\n    <Say>Please tell me the product code or ask about stock, store hours, or EMI options.</Say>\n  </Gather>\n  <Say>We didn't hear anything. Please call again. Goodbye.</Say>\n  <Hangup/>\n</Response>`;\n\nreturn [{ json: { body: twiml } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -976,
+        912
+      ],
+      "id": "92d0db8e-08aa-4947-a586-efd8d66bb3b3",
+      "name": "Code4"
+    },
+    {
+      "parameters": {
+        "url": "https://n8nbnnnnnnnnn.app.n8n.cloud/webhook/453e93a3-26d3-407c-864b-7ea954c1ed36",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twilioApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "+919003024825"
+            },
+            {
+              "name": "From",
+              "value": "+18145014607"
+            },
+            {
+              "name": "Twiml",
+              "value": "={{ $json.twiml }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1712,
+        1168
+      ],
+      "id": "cab3057a-b95c-4321-b090-f5afd60a2308",
+      "name": "HTTP Request1",
+      "credentials": {
+        "twilioApi": {
+          "id": "b1FAheczesWgSDJi",
+          "name": "Twilio account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass-through Code node for responding to Twilio\nconst inputItems = $input.all();\nconst inputData = inputItems[0]?.json || {};\n\n// 1️⃣ Ensure body and headers exist\nconst body = inputData.body || \"\";\nconst headers = inputData.headers || { \"Content-Type\": \"application/xml\" };\nconst statusCode = inputData.statusCode || 200;\n\n// 2️⃣ Return response to Respond to Webhook node\nreturn [\n  {\n    json: {\n      body,\n      headers,\n      statusCode\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -768,
+        912
+      ],
+      "id": "a48fdec7-46f6-4e89-aa60-608a067f937f",
+      "name": "Code3"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json[\"body\"] }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "=Content-Type",
+                "value": "application/xml"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -496,
+        656
+      ],
+      "id": "4d343916-e68c-4e5c-91a8-23845c7f16d7",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "e9c642ee-ebfd-444d-b789-ece3bb8a9025",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1872,
+        656
+      ],
+      "id": "86d51e84-c7f4-4fcc-bde1-01828423d7ba",
+      "name": "Webhook",
+      "webhookId": "e9c642ee-ebfd-444d-b789-ece3bb8a9025"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsing node - extracts SpeechResult, detects intent, extracts SKU safely\n\n// 1️⃣ Get input data safely\nconst items = $input.all();\nconst rawJson = (items[0] && items[0].json) || {};\nconst incoming = rawJson.body || rawJson || {};\n\n// 2️⃣ Extract Twilio SpeechResult safely\nlet speechResult = \"\";\nif (incoming.SpeechResult) {\n  speechResult = String(incoming.SpeechResult).trim();\n}\n\n// 3️⃣ Lowercase for intent matching\nconst speechLower = speechResult.toLowerCase();\n\n// 4️⃣ Detect intent\nlet intent = \"unknown\";\nif (speechLower.includes(\"stock\")) {\n  intent = \"stock\";\n} else if (speechLower.includes(\"hour\") || speechLower.includes(\"open\")) {\n  intent = \"hours\";\n} else if (speechLower.includes(\"emi\")) {\n  intent = \"emi\";\n} else if (\n  speechLower.includes(\"agent\") ||\n  speechLower.includes(\"support\") ||\n  speechLower.includes(\"human\")\n) {\n  intent = \"agent\";\n} else if (!speechResult) {\n  intent = \"empty\";\n}\n\n// 5️⃣ Extract SKU like P1 / P12 / P001\nlet sku = null;\nconst skuMatch = speechResult.match(/p\\s*(\\d{1,4})/i);\nif (skuMatch && skuMatch[1]) {\n  let digits = skuMatch[1];\n  if (digits.length < 3) digits = digits.padStart(3, \"0\"); // P1 -> P001, P12 -> P012\n  sku = \"P\" + digits;\n}\n\n// 6️⃣ Debug logs (visible in n8n executions)\nconsole.log(\"Incoming SpeechResult:\", speechResult);\nconsole.log(\"Detected intent:\", intent, \"Detected SKU:\", sku);\n\n// 7️⃣ Return structured JSON for next nodes\nreturn [\n  {\n    json: {\n      speechResult,\n      intent,\n      sku,\n      rawTwilio: incoming,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1504,
+        672
+      ],
+      "id": "a0b2ca39-e34f-4e29-a894-99bdb91dc3df",
+      "name": "Code in JavaScript",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "settings",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "key",
+              "condition": "eq",
+              "keyValue": "emi_options"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1024,
+        720
+      ],
+      "id": "5bbbaee6-9edd-466c-b2d1-2c10448bc67f",
+      "name": "Get many rows2",
+      "credentials": {
+        "supabaseApi": {
+          "id": "XcRajf5YMGLYH47C",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "path": "/twiml/outbound",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1712,
+        1392
+      ],
+      "id": "cc265dee-cd4c-43e6-bd10-bd3331657ac4",
+      "name": "Webhook4",
+      "webhookId": "b465da62-1b2c-4565-8ab6-342c79663520"
+    },
+    {
+      "parameters": {
+        "jsCode": "// The actual Production URL from your main Webhook (the top one) is correctly placed here.\nconst MAIN_WEBHOOK_URL = \"https://n8nbnnnnnnnnn.app.n8n.cloud/webhook/e9c642ee-ebfd-444d-b789-ece3bb8a9025\"; \n\nconst twiml = `\n<Response>\n    <Say>Hello, this is a follow-up call from your system. I am ready to help you now. Please ask your question about stock or store hours.</Say>\n    <Redirect>${MAIN_WEBHOOK_URL}</Redirect>\n</Response>`;\n\nreturn [{ \n    json: { \n        twiml: twiml \n    } \n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1488,
+        1392
+      ],
+      "id": "76d68d6c-8332-4db0-900b-f0c37cfaadc9",
+      "name": "Code8"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/AC6227d9fdef0adbc1ddc487fa40c6b8ae/Calls.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twilioApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "+919003024825"
+            },
+            {
+              "name": "From",
+              "value": "+18145014607"
+            },
+            {
+              "name": "Twiml",
+              "value": "={{ $json.twiml }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1712,
+        1616
+      ],
+      "id": "7a449450-3e76-4aae-a592-c40d4d3e08ce",
+      "name": "HTTP Request2",
+      "credentials": {
+        "twilioApi": {
+          "id": "b1FAheczesWgSDJi",
+          "name": "Twilio account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/AC5502ab26eccc7c49181a27ccfaf95c30/Calls.json",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "twilioApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "To",
+              "value": "+919003024825"
+            },
+            {
+              "name": "From",
+              "value": "+16154923592"
+            },
+            {
+              "name": "Twiml",
+              "value": "={{ $json.body }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -256,
+        656
+      ],
+      "id": "14247496-9aeb-4e18-a844-78bf226073ed",
+      "name": "HTTP Request",
+      "credentials": {
+        "twilioApi": {
+          "id": "GZGYV3tkyMLTbCLL",
+          "name": "Twilio account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Get many rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get many rows1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get many rows2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        []
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code2": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows1": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code4": {
+      "main": [
+        [
+          {
+            "node": "Code3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        []
+      ]
+    },
+    "Code3": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many rows2": {
+      "main": [
+        [
+          {
+            "node": "Code2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook4": {
+      "main": [
+        [
+          {
+            "node": "Code8",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code8": {
+      "main": [
+        []
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "2pNnI39yxjR1NLL6"
+  },
+  "versionId": "9b50c136-b125-4838-b806-07b1cbd3b235",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e454be96969d6cbafe3e19ae44e3361f16e042daaddf49291e509eff80b48ef6"
+  },
+  "id": "3JtK4jJiaxcEOdCO",
+  "tags": []
+}
