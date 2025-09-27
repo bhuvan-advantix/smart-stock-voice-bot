@@ -1,0 +1,162 @@
+# 📖 Documentation: Voice Bot Prototype (Smart Reorder Extension)
+
+This guide explains how to set up and run the **voice bot prototype** that answers customer queries (stock availability, store hours, EMI options) using **Twilio** and **n8n**.
+
+---
+
+## 1. 🎯 Objective
+
+We are building a **voice-based customer support bot** that can:
+
+* Answer **3 types of questions**:
+
+  1. Stock availability
+  2. Store hours
+  3. EMI options
+* Take **voice input** from the customer (via phone call).
+* Connect to our **Smart Reorder / Inventory DB** (Supabase in this setup).
+* Reply using **spoken voice (TwiML)**.
+
+---
+
+## 2. 🛠️ Tools Used
+
+* **Twilio** → Handles phone calls, speech-to-text, and voice response.
+* **Twilio TwiML Bin** → Hosts simple XML instructions for Twilio.
+* **n8n** → Workflow automation platform for logic + database queries.
+* **Supabase / Postgres** → Stores stock, store hours, EMI info.
+
+---
+
+## 3. ⚙️ Step-by-Step Setup
+
+### Step 1: Create Twilio Account
+
+1. Sign up at [https://www.twilio.com](https://www.twilio.com).
+2. Buy a **Twilio phone number** (with voice enabled).
+3. Note down:
+
+   * **Account SID** (starts with `AC...`)
+   * **Auth Token** (secret key)
+   * **Phone Number** (from Twilio)
+
+---
+
+### Step 2: Create a TwiML Bin
+
+1. Go to **Twilio Console → TwiML Bins**.
+2. Click **Create TwiML Bin**.
+3. Paste this XML:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="https://YOUR-N8N-WEBHOOK-URL" method="POST" speechTimeout="auto" language="en-IN">
+    <Say>Please tell me the product code or ask about stock, store hours, or EMI options.</Say>
+  </Gather>
+  <Say>We didn’t hear anything. Please call again. Goodbye.</Say>
+  <Hangup/>
+</Response>
+```
+
+✅ Replace `https://YOUR-N8N-WEBHOOK-URL` with your **n8n Webhook URL**.
+
+4. Save it. You’ll get a **TwiML Bin URL** like:
+
+   ```
+   https://handler.twilio.com/twiml/EHxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+
+---
+
+### Step 3: Build n8n Workflow
+
+1. In n8n, create a **Webhook** node (method `POST`).
+
+   * Copy its URL (e.g., `https://.../webhook/abcd1234`).
+
+2. Add a **Code node** to parse Twilio’s speech result:
+
+   * Detect **intent** (stock/hours/emi).
+   * Extract **SKU** if mentioned.
+
+3. Add a **Switch node** → routes based on intent.
+
+4. Add **Supabase/Postgres nodes**:
+
+   * Query `inventory` for stock.
+   * Query `settings` for store hours.
+   * Query `settings` for EMI options.
+
+5. Add **Code nodes** to generate TwiML responses:
+
+   Example for stock:
+
+   ```xml
+   <Response>
+     <Say>The product P001 has 10 units in stock.</Say>
+     <Hangup/>
+   </Response>
+   ```
+
+6. End with **Respond to Webhook** node → return TwiML with `Content-Type: application/xml`.
+
+---
+
+### Step 4: Connect Twilio Number to TwiML Bin
+
+1. Go to **Twilio Console → Phone Numbers → Manage Numbers**.
+2. Click your purchased number.
+3. Under **Voice & Fax → A Call Comes In**, select **TwiML Bin**.
+4. Choose the TwiML Bin you created.
+5. Save.
+
+✅ Now, when someone calls your Twilio number, Twilio will use your TwiML Bin → forward speech to **n8n workflow** → respond with voice.
+
+---
+
+## 4. 📞 Testing with cURL (Triggering Calls Programmatically)
+
+To make Twilio call a number and use your TwiML Bin, run:
+
+```bash
+curl -X POST "https://api.twilio.com/2010-04-01/Accounts/ACXXXXXXXXXXXX/Calls.json" \
+-u "ACXXXXXXXXXXXX:YOUR_AUTH_TOKEN" \
+--data "To=+91XXXXXXXXXX" \
+--data "From=+1XXXXXXXXXX" \
+--data "Url=https://handler.twilio.com/twiml/EHXXXXXXXXXXXX"
+```
+
+* Replace:
+
+  * `ACXXXXXXXXXXXX` → Your Account SID
+  * `YOUR_AUTH_TOKEN` → Your Twilio Auth Token
+  * `+91XXXXXXXXXX` → Customer phone number (to call)
+  * `+1XXXXXXXXXX` → Your Twilio number
+  * `EHXXXXXXXXXXXX` → Your TwiML Bin URL ID
+
+---
+
+## 5. 🎬 Example Call Flow
+
+1. Customer calls your Twilio number.
+2. TwiML Bin plays greeting:
+
+   > “Please tell me the product code or ask about stock, store hours, or EMI options.”
+3. Customer says: *“Do you have stock for P001?”*
+4. Twilio → sends speech to n8n webhook.
+5. n8n workflow → queries DB → generates TwiML:
+
+   > “The product P001 has 10 units in stock.”
+6. Twilio speaks this back to the customer.
+
+---
+
+## 6. 🚀 Extensions (Future Work)
+
+* Add **human escalation** → forward call to agent if intent = “agent”.
+* Add **multi-language support**.
+* Add **order placement flow**.
+
+---
+
